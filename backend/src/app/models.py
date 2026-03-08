@@ -23,7 +23,9 @@ class User(Base):
     id = Column(String, primary_key=True, default=gen_id)
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=True)  # null for legacy/migrated users
     profile_picture_url = Column(String, default="")
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 

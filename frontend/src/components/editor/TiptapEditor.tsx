@@ -11,6 +11,7 @@ import {
   Users, Wifi, WifiOff,
 } from 'lucide-react';
 import { useDocumentStore } from '../../store/documentStore';
+import { getAuthToken } from '../../api/quipClient';
 
 const COLORS = ['#f44336','#e91e63','#9c27b0','#2196f3','#009688','#ff9800','#795548','#607d8b'];
 const randomColor = () => COLORS[Math.floor(Math.random() * COLORS.length)];
@@ -30,9 +31,13 @@ export function TiptapEditor() {
   const { ydoc, provider } = useMemo(() => {
     if (!docId) return { ydoc: null, provider: null };
     const ydoc = new Y.Doc();
-    const provider = new WebsocketProvider(WS_BASE + '/ws/yjs', docId, ydoc, {
-      connect: true,
-    });
+    const token = getAuthToken();
+    const provider = new WebsocketProvider(
+      WS_BASE + '/ws/yjs',
+      docId,
+      ydoc,
+      { connect: true, params: { token: token || '' } },
+    );
 
     // Set local user awareness
     provider.awareness.setLocalStateField('user', {

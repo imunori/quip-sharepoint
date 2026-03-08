@@ -1,15 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth import get_current_user
 from ..database import get_db
-from ..services import document_service, user_service
-from .schemas import MessageResponse, NewMessageRequest
+from ..models import User
+from ..services import document_service
+from .schemas import NewMessageRequest
 
 router = APIRouter()
 
 
 @router.get("/messages/{thread_id}")
-async def get_messages(thread_id: str, db: AsyncSession = Depends(get_db)):
+async def get_messages(
+    thread_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     messages = await document_service.get_messages(db, thread_id)
     return [
         {
@@ -24,8 +30,11 @@ async def get_messages(thread_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/messages/new")
-async def new_message(req: NewMessageRequest, db: AsyncSession = Depends(get_db)):
-    user = await user_service.get_or_create_default_user(db)
+async def new_message(
+    req: NewMessageRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     msg = await document_service.create_message(
         db,
         doc_id=req.thread_id,

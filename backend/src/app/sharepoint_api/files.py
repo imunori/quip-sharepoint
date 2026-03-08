@@ -2,13 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, Fil
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth import get_current_user
 from ..database import get_db
-from ..models import Attachment, Document, Folder
-from ..services import file_storage, folder_service, user_service
-from ..models import gen_id
+from ..models import Attachment, Folder, User, gen_id
+from ..services import file_storage, folder_service
 from .schemas import sp_wrap, sp_wrap_collection
 
 router = APIRouter()
+
+# Max upload size: 50MB
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024
 
 
 def _attachment_to_sp_file(att: Attachment) -> dict:
@@ -35,8 +38,11 @@ def _folder_to_sp_folder(folder: Folder) -> dict:
 
 
 @router.get("/web/getfolderbyserverrelativeurl('{url:path}')")
-async def get_folder_by_url(url: str, db: AsyncSession = Depends(get_db)):
-    # Try to find folder by site_path or id
+async def get_folder_by_url(
+    url: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     folder_id = url.strip("/").split("/")[-1] if "/" in url else url.strip("/")
     folder = await folder_service.get_folder(db, folder_id)
     if not folder:
@@ -45,7 +51,11 @@ async def get_folder_by_url(url: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/web/getfolderbyserverrelativeurl('{url:path}')/files")
-async def get_folder_files(url: str, db: AsyncSession = Depends(get_db)):
+async def get_folder_files(
+    url: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     folder_id = url.strip("/").split("/")[-1] if "/" in url else url.strip("/")
     result = await db.execute(
         select(Attachment).where(Attachment.folder_id == folder_id)
@@ -56,7 +66,11 @@ async def get_folder_files(url: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/web/getfilebyserverrelativeurl('{url:path}')")
-async def get_file_by_url(url: str, db: AsyncSession = Depends(get_db)):
+async def get_file_by_url(
+    url: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     result = await db.execute(
         select(Attachment).where(Attachment.storage_path == url.strip("/"))
     )
@@ -67,7 +81,11 @@ async def get_file_by_url(url: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/web/getfilebyserverrelativeurl('{url:path}')/$value")
-async def download_file(url: str, db: AsyncSession = Depends(get_db)):
+async def download_file(
+    url: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     result = await db.execute(
         select(Attachment).where(Attachment.storage_path == url.strip("/"))
     )
@@ -83,11 +101,13 @@ async def upload_file(
     url: str,
     filename: str,
     file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     folder_id = url.strip("/").split("/")[-1] if "/" in url else url.strip("/")
-    user = await user_service.get_or_create_default_user(db)
     data = await file.read()
+    if len(data) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="File too large (max 50MB)")
     storage_path = file_storage.save_file(folder_id, filename, data)
     att = Attachment(
         id=gen_id(),
@@ -105,7 +125,11 @@ async def upload_file(
 
 
 @router.delete("/web/getfilebyserverrelativeurl('{url:path}')")
-async def delete_file(url: str, db: AsyncSession = Depends(get_db)):
+async def delete_file(
+    url: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     result = await db.execute(
         select(Attachment).where(Attachment.storage_path == url.strip("/"))
     )

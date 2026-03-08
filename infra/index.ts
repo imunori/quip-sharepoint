@@ -10,10 +10,13 @@ class QuipSharePointStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // VPC
+    // VPC (no NAT Gateway to save cost and avoid quota limits)
     const vpc = new ec2.Vpc(this, 'Vpc', {
       maxAzs: 2,
-      natGateways: 1,
+      natGateways: 0,
+      subnetConfiguration: [
+        { name: 'Public', subnetType: ec2.SubnetType.PUBLIC, cidrMask: 24 },
+      ],
     });
 
     // EFS for SQLite + file storage persistence
@@ -64,7 +67,7 @@ class QuipSharePointStack extends cdk.Stack {
         logRetention: logs.RetentionDays.TWO_WEEKS,
       }),
       environment: {
-        JWT_SECRET: 'change-me-in-production',
+        // JWT_SECRET auto-generated and persisted on EFS if not set
       },
       portMappings: [{ containerPort: 8000 }],
       healthCheck: {
@@ -87,12 +90,13 @@ class QuipSharePointStack extends cdk.Stack {
       internetFacing: true,
     });
 
-    // Fargate Service
+    // Fargate Service (public subnet, no NAT needed)
     const service = new ecs.FargateService(this, 'Service', {
       cluster,
       taskDefinition: taskDef,
       desiredCount: 1,
-      assignPublicIp: false,
+      assignPublicIp: true,
+      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
       platformVersion: ecs.FargatePlatformVersion.LATEST,
     });
 

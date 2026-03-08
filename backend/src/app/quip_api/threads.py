@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth import get_current_user
 from ..database import get_db
-from ..services import document_service, user_service
-from .schemas import EditDocumentRequest, NewDocumentRequest, ThreadResponse
+from ..models import User
+from ..services import document_service
+from .schemas import EditDocumentRequest, NewDocumentRequest
 
 router = APIRouter()
 
@@ -28,6 +30,7 @@ def _format_thread(doc) -> dict:
 @router.get("/threads/recent")
 async def get_recent_threads(
     count: int = 50,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     docs = await document_service.list_recent_documents(db, limit=count)
@@ -35,7 +38,11 @@ async def get_recent_threads(
 
 
 @router.get("/threads/{thread_id}")
-async def get_thread(thread_id: str, db: AsyncSession = Depends(get_db)):
+async def get_thread(
+    thread_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     doc = await document_service.get_document(db, thread_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Thread not found")
@@ -43,8 +50,11 @@ async def get_thread(thread_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/threads/new-document")
-async def new_document(req: NewDocumentRequest, db: AsyncSession = Depends(get_db)):
-    user = await user_service.get_or_create_default_user(db)
+async def new_document(
+    req: NewDocumentRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     doc = await document_service.create_document(
         db,
         title=req.title,
@@ -58,7 +68,11 @@ async def new_document(req: NewDocumentRequest, db: AsyncSession = Depends(get_d
 
 
 @router.post("/threads/edit-document")
-async def edit_document(req: EditDocumentRequest, db: AsyncSession = Depends(get_db)):
+async def edit_document(
+    req: EditDocumentRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     doc = await document_service.update_document(
         db,
         doc_id=req.thread_id,
@@ -72,6 +86,10 @@ async def edit_document(req: EditDocumentRequest, db: AsyncSession = Depends(get
 
 
 @router.post("/threads/{thread_id}/delete")
-async def delete_thread(thread_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_thread(
+    thread_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     await document_service.delete_document(db, thread_id)
     return {"ok": True}

@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
-import { Menu, Plus, Search, Home, X, Table, FileText, ChevronDown } from 'lucide-react';
+import { Menu, Plus, Search, Home, X, Table, FileText, ChevronDown, LogOut } from 'lucide-react';
 import { useDocumentStore } from '../../store/documentStore';
+import { authApi, getAuthToken } from '../../api/quipClient';
 
 export function Header() {
   const { toggleSidebar, createDocument, currentUser, searchQuery, search, goHome } = useDocumentStore();
@@ -18,9 +19,13 @@ export function Header() {
     setShowCreateMenu(false);
     const title = prompt('スプレッドシート名を入力:');
     if (!title) return;
+    const token = getAuthToken();
     const res = await fetch('/api/1/threads/new-spreadsheet', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ title }),
     });
     if (res.ok) {
@@ -97,6 +102,9 @@ export function Header() {
           <div className="user-badge">
             <span className="user-avatar">{currentUser.name[0]}</span>
             <span className="user-name">{currentUser.name}</span>
+            <button className="logout-btn" onClick={authApi.logout} title="ログアウト">
+              <LogOut size={14} />
+            </button>
           </div>
         )}
       </div>

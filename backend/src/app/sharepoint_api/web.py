@@ -1,13 +1,15 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from ..auth import get_current_user
 from ..config import SITE_DESCRIPTION, SITE_TITLE
+from ..models import User
 from .schemas import sp_wrap
 
 router = APIRouter()
 
 
 @router.get("/web")
-async def get_web():
+async def get_web(user: User = Depends(get_current_user)):
     return sp_wrap(
         {
             "Title": SITE_TITLE,
@@ -22,12 +24,12 @@ async def get_web():
 
 
 @router.get("/web/title")
-async def get_web_title():
+async def get_web_title(user: User = Depends(get_current_user)):
     return sp_wrap({"Title": SITE_TITLE})
 
 
 @router.post("/contextinfo")
-async def get_context_info():
+async def get_context_info(user: User = Depends(get_current_user)):
     return sp_wrap(
         {
             "FormDigestValue": "self-hosted-no-digest-needed",

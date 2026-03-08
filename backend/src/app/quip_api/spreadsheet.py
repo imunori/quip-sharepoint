@@ -8,8 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth import get_current_user
 from ..database import get_db
-from ..services import document_service, user_service
+from ..models import User
+from ..services import document_service
 
 router = APIRouter()
 
@@ -51,9 +53,9 @@ async def new_spreadsheet(
     title: str = "Untitled Spreadsheet",
     headers: list[str] | None = None,
     folder_id: str | None = None,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    user = await user_service.get_or_create_default_user(db)
     initial_data = SpreadsheetData(
         headers=headers or ["A", "B", "C", "D", "E"],
         rows=[],
@@ -78,7 +80,11 @@ async def new_spreadsheet(
 
 
 @router.get("/threads/{thread_id}/spreadsheet")
-async def get_spreadsheet(thread_id: str, db: AsyncSession = Depends(get_db)):
+async def get_spreadsheet(
+    thread_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     doc = await document_service.get_document(db, thread_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Thread not found")
@@ -91,12 +97,15 @@ async def get_spreadsheet(thread_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/threads/spreadsheet/add-row")
-async def add_row(req: AddRowRequest, db: AsyncSession = Depends(get_db)):
+async def add_row(
+    req: AddRowRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     doc = await document_service.get_document(db, req.thread_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Thread not found")
     data = _parse_spreadsheet(doc.content_html)
-    # Pad or truncate cells to match header count
     row = req.cells[:len(data.headers)] if data.headers else req.cells
     while len(row) < len(data.headers):
         row.append("")
@@ -108,7 +117,11 @@ async def add_row(req: AddRowRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/threads/spreadsheet/edit-cell")
-async def edit_cell(req: EditCellRequest, db: AsyncSession = Depends(get_db)):
+async def edit_cell(
+    req: EditCellRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     doc = await document_service.get_document(db, req.thread_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Thread not found")
@@ -125,7 +138,12 @@ async def edit_cell(req: EditCellRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/threads/spreadsheet/delete-row")
-async def delete_row(thread_id: str, row_index: int, db: AsyncSession = Depends(get_db)):
+async def delete_row(
+    thread_id: str,
+    row_index: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     doc = await document_service.get_document(db, thread_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Thread not found")
@@ -139,7 +157,12 @@ async def delete_row(thread_id: str, row_index: int, db: AsyncSession = Depends(
 
 
 @router.post("/threads/spreadsheet/add-column")
-async def add_column(thread_id: str, header: str = "New", db: AsyncSession = Depends(get_db)):
+async def add_column(
+    thread_id: str,
+    header: str = "New",
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     doc = await document_service.get_document(db, thread_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Thread not found")

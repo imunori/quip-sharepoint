@@ -399,3 +399,53 @@ body { margin: 0; min-height: 100vh; }
   text-align: center; padding: 40px !important;
   color: var(--text-muted); font-size: 14px;
 }
+
+/* Login Page */
+.login-page {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 24px;
+}
+.login-card {
+  background: white; border-radius: 12px; padding: 40px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  width: 100%; max-width: 400px;
+}
+.login-header { text-align: center; margin-bottom: 32px; }
+.login-header h1 {
+  font-size: 24px; font-weight: 700; color: var(--text);
+  margin-bottom: 8px;
+}
+.login-header p { font-size: 15px; color: var(--text-secondary); }
+.login-form { display: flex; flex-direction: column; gap: 16px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.form-group input {
+  padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 14px; outline: none; transition: border-color 0.15s;
+}
+.form-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,120,212,0.1); }
+.login-error {
+  background: #fff5f5; color: var(--danger); padding: 10px 14px;
+  border-radius: 6px; font-size: 13px; border: 1px solid #fecaca;
+}
+.login-btn {
+  padding: 12px; background: var(--primary); color: white; border: none;
+  border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s;
+}
+.login-btn:hover { background: var(--primary-hover); }
+.login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.login-toggle { text-align: center; margin-top: 16px; }
+.login-toggle button {
+  background: none; border: none; color: var(--primary); cursor: pointer;
+  font-size: 13px;
+}
+.login-toggle button:hover { text-decoration: underline; }
+
+/* Logout button in header */
+.logout-btn {
+  background: rgba(255,255,255,0.15); border: none; color: white;
+  padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer;
+}
+.logout-btn:hover { background: rgba(255,255,255,0.25); }

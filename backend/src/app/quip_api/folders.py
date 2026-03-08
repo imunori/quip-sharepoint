@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth import get_current_user
 from ..database import get_db
-from ..services import folder_service, user_service
+from ..models import User
+from ..services import folder_service
 from .schemas import NewFolderRequest, UpdateFolderRequest
 
 router = APIRouter()
@@ -33,6 +35,7 @@ def _format_folder(folder, children=None) -> dict:
 @router.get("/folders")
 async def list_folders(
     parent_id: str | None = None,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     folders = await folder_service.list_folders(db, parent_id=parent_id)
@@ -40,11 +43,14 @@ async def list_folders(
 
 
 @router.get("/folders/{folder_id}")
-async def get_folder(folder_id: str, db: AsyncSession = Depends(get_db)):
+async def get_folder(
+    folder_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     folder = await folder_service.get_folder(db, folder_id)
     if not folder:
         raise HTTPException(status_code=404, detail="Folder not found")
-    # Get child folders and documents
     child_folders = await folder_service.list_folders(db, parent_id=folder_id)
     child_docs = await folder_service.get_folder_documents(db, folder_id)
     children = list(child_folders) + list(child_docs)
@@ -52,8 +58,11 @@ async def get_folder(folder_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/folders/new")
-async def new_folder(req: NewFolderRequest, db: AsyncSession = Depends(get_db)):
-    user = await user_service.get_or_create_default_user(db)
+async def new_folder(
+    req: NewFolderRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     folder = await folder_service.create_folder(
         db,
         title=req.title,
@@ -65,7 +74,11 @@ async def new_folder(req: NewFolderRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/folders/update")
-async def update_folder(req: UpdateFolderRequest, db: AsyncSession = Depends(get_db)):
+async def update_folder(
+    req: UpdateFolderRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     folder = await folder_service.update_folder(
         db,
         folder_id=req.folder_id,

@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth import get_current_user
 from ..database import get_db
-from ..services import document_service, folder_service, user_service
+from ..models import User
+from ..services import document_service, folder_service
 from .odata import apply_odata
 from .schemas import sp_wrap, sp_wrap_collection
 
@@ -37,6 +39,7 @@ def _doc_to_sp_item(doc) -> dict:
 
 @router.get("/web/lists")
 async def get_lists(
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     select: str | None = Query(None, alias="$select"),
     filter: str | None = Query(None, alias="$filter"),
@@ -51,9 +54,12 @@ async def get_lists(
 
 
 @router.post("/web/lists")
-async def create_list(request: Request, db: AsyncSession = Depends(get_db)):
+async def create_list(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     body = await request.json()
-    user = await user_service.get_or_create_default_user(db)
     base_template = body.get("BaseTemplate", 100)
     folder_type = "document_library" if base_template == 101 else "list"
     folder = await folder_service.create_folder(
@@ -66,7 +72,11 @@ async def create_list(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/web/lists/getbytitle('{title}')")
-async def get_list_by_title(title: str, db: AsyncSession = Depends(get_db)):
+async def get_list_by_title(
+    title: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     folder = await folder_service.get_folder_by_title(db, title)
     if not folder:
         raise HTTPException(status_code=404, detail=f"List '{title}' not found")
@@ -76,6 +86,7 @@ async def get_list_by_title(title: str, db: AsyncSession = Depends(get_db)):
 @router.get("/web/lists/getbytitle('{title}')/items")
 async def get_list_items(
     title: str,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     select: str | None = Query(None, alias="$select"),
     filter: str | None = Query(None, alias="$filter"),
@@ -93,12 +104,16 @@ async def get_list_items(
 
 
 @router.post("/web/lists/getbytitle('{title}')/items")
-async def create_list_item(title: str, request: Request, db: AsyncSession = Depends(get_db)):
+async def create_list_item(
+    title: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     folder = await folder_service.get_folder_by_title(db, title)
     if not folder:
         raise HTTPException(status_code=404, detail=f"List '{title}' not found")
     body = await request.json()
-    user = await user_service.get_or_create_default_user(db)
     doc = await document_service.create_document(
         db,
         title=body.get("Title", "New Item"),
@@ -112,7 +127,9 @@ async def create_list_item(title: str, request: Request, db: AsyncSession = Depe
 
 @router.get("/web/lists/getbytitle('{title}')/items({item_id})")
 async def get_list_item(
-    title: str, item_id: str,
+    title: str,
+    item_id: str,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     select: str | None = Query(None, alias="$select"),
 ):
@@ -129,7 +146,11 @@ async def get_list_item(
 @router.put("/web/lists/getbytitle('{title}')/items({item_id})")
 @router.post("/web/lists/getbytitle('{title}')/items({item_id})")
 async def update_list_item(
-    title: str, item_id: str, request: Request, db: AsyncSession = Depends(get_db)
+    title: str,
+    item_id: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     body = await request.json()
     doc = await document_service.update_document(
@@ -144,19 +165,26 @@ async def update_list_item(
 
 
 @router.delete("/web/lists/getbytitle('{title}')/items({item_id})")
-async def delete_list_item(title: str, item_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_list_item(
+    title: str,
+    item_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     await document_service.delete_document(db, item_id)
     return {"ok": True}
 
 
-# SharePoint-compatible fields endpoint
 @router.get("/web/lists/getbytitle('{title}')/fields")
-async def get_list_fields(title: str, db: AsyncSession = Depends(get_db)):
+async def get_list_fields(
+    title: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """Return field definitions for a list (SharePoint compat)."""
     folder = await folder_service.get_folder_by_title(db, title)
     if not folder:
         raise HTTPException(status_code=404, detail=f"List '{title}' not found")
-    # Return default fields
     default_fields = [
         {"Title": "Title", "InternalName": "Title", "TypeAsString": "Text", "Required": True},
         {"Title": "Content Type", "InternalName": "ContentType", "TypeAsString": "Text", "Required": False},

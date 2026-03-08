@@ -24,8 +24,9 @@ COPY backend/src/ src/
 # Copy built frontend
 COPY --from=frontend-build /app/frontend/dist /app/static
 
-# Create data directories
-RUN mkdir -p data storage
+# Create non-root user and data directories
+RUN useradd -m -u 1000 appuser && mkdir -p data storage && chown -R appuser:appuser /app
+USER appuser
 
 # Expose port
 EXPOSE 8000

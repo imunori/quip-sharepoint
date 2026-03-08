@@ -8,3 +8,5 @@ node_modules/
 dist/
 .env
 *.db
+cdk.out/
+cdk.context.json

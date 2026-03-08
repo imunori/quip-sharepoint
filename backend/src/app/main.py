@@ -3,13 +3,15 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from .database import engine
+from .auth import get_ws_user
+from .auth_router import router as auth_router
+from .database import async_session, engine
 from .models import Base
 from .quip_api.router import router as quip_router
 from .sharepoint_api.router import router as sp_router
@@ -44,16 +46,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Quip-SharePoint", version="0.1.0", lifespan=lifespan)
 
-# CORS
+# CORS - in production, frontend is served from same origin so CORS is not needed
+import os
+_cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=[o.strip() for o in _cors_origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Mount API routers
+# Mount auth router (no prefix - /auth/login, /auth/register, /auth/me)
+app.include_router(auth_router)
+# Mount API routers (protected by auth)
 app.include_router(quip_router)
 app.include_router(sp_router)
 
@@ -63,13 +69,18 @@ async def health():
     return {"status": "ok"}
 
 
-# Yjs collaborative editing WebSocket
+# Yjs collaborative editing WebSocket (authenticated via token query param)
 @app.websocket("/ws/yjs/{document_id}")
 async def ws_yjs(websocket: WebSocket, document_id: str):
     """Handle Yjs sync protocol for collaborative editing."""
+    # Authenticate via token query parameter
+    async with async_session() as db:
+        user = await get_ws_user(websocket, db)
+    if not user:
+        await websocket.close(code=4001, reason="Authentication required")
+        return
+
     await websocket.accept()
-    room = websocket_server.get_room(document_id)
-    # Wrap FastAPI WebSocket for pycrdt-websocket compatibility
     ws = _FastAPIWebsocketAdapter(websocket, document_id)
     try:
         await websocket_server.serve(ws)
