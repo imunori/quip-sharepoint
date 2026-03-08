@@ -1,0 +1,10 @@
+infra/
+.git/
+**/.venv/
+**/node_modules/
+**/dist/
+**/__pycache__/
+**/cdk.out/
+*.db
+backend/data/
+backend/storage/

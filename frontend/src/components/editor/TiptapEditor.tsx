@@ -15,7 +15,8 @@ import { useDocumentStore } from '../../store/documentStore';
 const COLORS = ['#f44336','#e91e63','#9c27b0','#2196f3','#009688','#ff9800','#795548','#607d8b'];
 const randomColor = () => COLORS[Math.floor(Math.random() * COLORS.length)];
 
-const WS_BASE = `ws://${window.location.hostname}:8000`;
+const WS_PROTO = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const WS_BASE = `${WS_PROTO}//${window.location.host}`;
 
 export function TiptapEditor() {
   const { currentDocument, saveDocument, currentUser } = useDocumentStore();
