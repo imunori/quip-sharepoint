@@ -98,6 +98,7 @@ class QuipSharePointStack extends cdk.Stack {
       assignPublicIp: true,
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
       platformVersion: ecs.FargatePlatformVersion.LATEST,
+      circuitBreaker: { enable: true, rollback: true },
     });
 
     // Allow EFS access
