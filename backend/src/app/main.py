@@ -1,29 +1,42 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from .database import engine
 from .models import Base
 from .quip_api.router import router as quip_router
 from .sharepoint_api.router import router as sp_router
-from .websocket.manager import manager
+from .websocket.yjs_handler import websocket_server, start_yjs, stop_yjs
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+_yjs_task: asyncio.Task | None = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _yjs_task
     # Create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.execute(text("PRAGMA journal_mode=WAL"))
     logger.info("Database initialized")
+
+    # Start Yjs server as background task (start() blocks until stopped)
+    _yjs_task = asyncio.create_task(start_yjs())
+    logger.info("Yjs server started")
+
     yield
+
+    # Shutdown
+    await stop_yjs()
+    if _yjs_task:
+        _yjs_task.cancel()
 
 
 app = FastAPI(title="Quip-SharePoint", version="0.1.0", lifespan=lifespan)
@@ -47,37 +60,42 @@ async def health():
     return {"status": "ok"}
 
 
-# WebSocket for collaborative editing
-@app.websocket("/ws/document/{document_id}")
-async def ws_document(websocket: WebSocket, document_id: str):
-    await manager.connect(document_id, websocket)
-    logger.info(f"WS connected: doc={document_id}, total={manager.get_connection_count(document_id)}")
+# Yjs collaborative editing WebSocket
+@app.websocket("/ws/yjs/{document_id}")
+async def ws_yjs(websocket: WebSocket, document_id: str):
+    """Handle Yjs sync protocol for collaborative editing."""
+    await websocket.accept()
+    room = websocket_server.get_room(document_id)
+    # Wrap FastAPI WebSocket for pycrdt-websocket compatibility
+    ws = _FastAPIWebsocketAdapter(websocket, document_id)
     try:
-        while True:
-            data = await websocket.receive_bytes()
-            # Broadcast Yjs update to all other clients
-            await manager.broadcast(document_id, data, exclude=websocket)
-    except WebSocketDisconnect:
-        manager.disconnect(document_id, websocket)
-        logger.info(f"WS disconnected: doc={document_id}")
+        await websocket_server.serve(ws)
     except Exception as e:
-        manager.disconnect(document_id, websocket)
-        logger.error(f"WS error: {e}")
+        logger.debug(f"Yjs WS closed: doc={document_id}, reason={e}")
 
 
-# WebSocket for presence (cursors, online status)
-@app.websocket("/ws/presence/{document_id}")
-async def ws_presence(websocket: WebSocket, document_id: str):
-    await manager.connect(f"presence-{document_id}", websocket)
-    try:
-        while True:
-            data = await websocket.receive_text()
-            await manager.broadcast_json(
-                f"presence-{document_id}",
-                {"type": "presence", "data": data},
-                exclude=websocket,
-            )
-    except WebSocketDisconnect:
-        manager.disconnect(f"presence-{document_id}", websocket)
-    except Exception:
-        manager.disconnect(f"presence-{document_id}", websocket)
+class _FastAPIWebsocketAdapter:
+    """Adapt FastAPI WebSocket to pycrdt-websocket Channel interface."""
+
+    def __init__(self, websocket: WebSocket, path: str):
+        self._ws = websocket
+        self._path = path
+
+    @property
+    def path(self) -> str:
+        return self._path
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self) -> bytes:
+        try:
+            return await self._ws.receive_bytes()
+        except (WebSocketDisconnect, Exception):
+            raise StopAsyncIteration
+
+    async def send(self, message: bytes):
+        await self._ws.send_bytes(message)
+
+    async def recv(self) -> bytes:
+        return await self._ws.receive_bytes()

@@ -1,32 +1,31 @@
 """
-Yjs WebSocket handler using pycrdt-websocket.
+Yjs WebSocket handler integrated with FastAPI.
 
-Handles collaborative editing sync via Yjs protocol.
+Uses pycrdt for Yjs sync protocol + SQLite persistence.
 """
 import logging
 
-from pycrdt import Doc
-from pycrdt_websocket import WebsocketServer
-from pycrdt_websocket.stores import SQLiteYStore
+from pycrdt.websocket import WebsocketServer
+from pycrdt.store import SQLiteYStore
 
 from ..config import DATA_DIR
 
 logger = logging.getLogger(__name__)
 
-# Yjs WebSocket server instance
-yjs_server = WebsocketServer(auto_clean_rooms=True)
+# Persistent Yjs store
+ystore = SQLiteYStore(path=str(DATA_DIR / "yjs.db"))
 
-# SQLite-backed Yjs document store for persistence
-yjs_store = SQLiteYStore(path=str(DATA_DIR / "yjs.db"))
+# WebSocket server managing rooms per document
+websocket_server = WebsocketServer(auto_clean_rooms=True)
 
 
-async def start_yjs_server():
-    """Start the Yjs WebSocket server."""
-    await yjs_server.start()
+async def start_yjs():
+    """Initialize Yjs server and store."""
+    await websocket_server.start()
     logger.info("Yjs WebSocket server started")
 
 
-async def stop_yjs_server():
-    """Stop the Yjs WebSocket server."""
-    await yjs_server.stop()
+async def stop_yjs():
+    """Shutdown Yjs server."""
+    await websocket_server.stop()
     logger.info("Yjs WebSocket server stopped")
