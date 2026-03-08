@@ -11,7 +11,8 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install uv
+# Install curl (for health check) and uv
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir uv
 
 # Install backend deps
