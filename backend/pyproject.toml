@@ -1,0 +1,16 @@
+[project]
+name = "quip-sharepoint-backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "fastapi>=0.135.1",
+    "pycrdt>=0.12.47",
+    "pycrdt-websocket>=0.16.0",
+    "pyjwt>=2.11.0",
+    "python-multipart>=0.0.22",
+    "sqlalchemy[asyncio]>=2.0.48",
+    "uvicorn[standard]>=0.41.0",
+]
