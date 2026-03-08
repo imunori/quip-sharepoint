@@ -4,6 +4,8 @@ import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as efs from 'aws-cdk-lib/aws-efs';
 import * as elb from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as sns from 'aws-cdk-lib/aws-sns';
+import * as subs from 'aws-cdk-lib/aws-sns-subscriptions';
 import { Construct } from 'constructs';
 
 class QuipSharePointStack extends cdk.Stack {
@@ -32,6 +34,14 @@ class QuipSharePointStack extends cdk.Stack {
       createAcl: { ownerGid: '1000', ownerUid: '1000', permissions: '755' },
       posixUser: { gid: '1000', uid: '1000' },
     });
+
+    // SNS topic for registration notifications
+    const registrationTopic = new sns.Topic(this, 'RegistrationTopic', {
+      displayName: 'Quip-SharePoint Registration Notifications',
+    });
+    registrationTopic.addSubscription(
+      new subs.EmailSubscription('imunori@amazon.co.jp')
+    );
 
     // ECS Cluster
     const cluster = new ecs.Cluster(this, 'Cluster', { vpc });
@@ -67,7 +77,7 @@ class QuipSharePointStack extends cdk.Stack {
         logRetention: logs.RetentionDays.TWO_WEEKS,
       }),
       environment: {
-        // JWT_SECRET auto-generated and persisted on EFS if not set
+        REGISTRATION_SNS_TOPIC_ARN: registrationTopic.topicArn,
       },
       portMappings: [{ containerPort: 8000 }],
       healthCheck: {
@@ -104,6 +114,9 @@ class QuipSharePointStack extends cdk.Stack {
     // Allow EFS access
     fileSystem.connections.allowDefaultPortFrom(service);
     fileSystem.grantRootAccess(taskDef.taskRole);
+
+    // Allow SNS publish for registration notifications
+    registrationTopic.grantPublish(taskDef.taskRole);
 
     // ALB Target Group with stickiness for WebSocket
     const targetGroup = new elb.ApplicationTargetGroup(this, 'TG', {
